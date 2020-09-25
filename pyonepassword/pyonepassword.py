@@ -8,7 +8,7 @@ from ._py_op_items import (
     OPAbstractItem,
     OPLoginItem,
 )
-from ._py_op_cli import OPCLIConfig
+from ._py_op_cli import _OPCLIExecute
 from ._py_op_deprecation import deprecated
 from .py_op_exceptions import (
     OPGetItemException,
@@ -17,7 +17,7 @@ from .py_op_exceptions import (
 )
 
 
-class OP:
+class OP(_OPCLIExecute):
     """
     Class for logging into and querying a 1Password account via the 'op' cli command.
     """
@@ -48,98 +48,20 @@ class OP:
             - OPSigninException if 1Password sign-in fails for any reason.
             - OPNotFoundException if the 1Password command can't be found.
         """
-        if not logger:
-            logging.basicConfig(format="%(message)s", level=logging.DEBUG)
-            logger = logging.getLogger()
-        self.logger = logger
-
-        if account_shorthand is None:
-            config = OPCLIConfig()
-            try:
-                account_shorthand = config['latest_signin']
-                self.logger.debug(
-                    "Using account shorthand found in op config: {}".format(account_shorthand))
-            except KeyError:
-                account_shorthand = None
-
-        if account_shorthand is None:
-            raise OPSigninException(
-                "Account shorthand not provided and not found in 'op' config")
-
-        self.account_shorthand = account_shorthand
-        self.op_path = op_path
-
-        initial_signin_args = [account_shorthand,
-                               signin_address,
-                               email_address,
-                               secret_key,
-                               password]
-        initial_signin = (None not in initial_signin_args)
-
-        if initial_signin:
-            self.token = self._do_initial_signin(*initial_signin_args)
-            # export OP_SESSION_<signin_address>
-        else:
-            self.token = self._do_normal_signin(password)
-        sess_var_name = 'OP_SESSION_{}'.format(self.account_shorthand)
-        # TODO: return alread-decoded token from sign-in
-        env[sess_var_name] = self.token.decode()
-
-    def _do_normal_signin(self, password):
-        self.logger.info("Doing normal (non-initial) 1Password sign-in")
-        signin_argv = [self.op_path, "signin", "--output=raw"]
-        print("")
-        token = self._run_signin(signin_argv, password=password).rstrip()
-        return token
-
-    def _do_initial_signin(self, account_shorthand, signin_address, email_address, secret_key, password):
-        self.logger.info(
-            "Performing initial 1Password sign-in to {} as {}".format(signin_address, email_address))
-        signin_argv = [self.op_path, "signin", signin_address,
-                       email_address, secret_key, "--output=raw"]
-        print("")
-        token = self._run_signin(signin_argv, password=password).rstrip()
-
-        return token
-
-    def _run_signin(self, argv, password=None):
-        return self._run(argv, OPSigninException, capture_stdout=True, input_string=password)
+        super().__init__(account_shorthand=account_shorthand,
+                         signin_address=signin_address,
+                         email_address=email_address,
+                         secret_key=secret_key,
+                         password=password,
+                         logger=logger,
+                         op_path=op_path
+                         )
 
     def _run_get_item(self, argv, input_string=None, decode=None):
         return self._run(argv, OPGetItemException, capture_stdout=True, input_string=input_string, decode=decode)
 
     def _run_get_document(self, argv, input_string=None, decode=None):
         return self._run(argv, OPGetDocumentException, capture_stdout=True, input_string=input_string, decode=decode)
-
-    def _run(self, argv, op_exception_class, capture_stdout=False, input_string=None, decode=None):
-        _ran = None
-        stdout = subprocess.PIPE if capture_stdout else None
-        if input_string:
-            if isinstance(input_string, str):
-                input_string = input_string.encode("utf-8")
-        try:
-            _ran = subprocess.run(argv, input=input_string,
-                                  stderr=subprocess.PIPE, stdout=stdout, env=env)
-        except FileNotFoundError as err:
-            self.logger.error(
-                "1Password 'op' command not found at: {}".format(argv[0]))
-            self.logger.error(
-                "See https://support.1password.com/command-line-getting-started/ for more information,")
-            self.logger.error(
-                "or install from Homebrew with: 'brew install 1password-cli")
-            raise OPNotFoundException(argv[0], err.errno) from err
-
-        output = None
-        try:
-            _ran.check_returncode()
-            if capture_stdout:
-                output = _ran.stdout.decode(decode) if decode else _ran.stdout
-        except subprocess.CalledProcessError as err:
-            stderr_output = _ran.stderr.decode("utf-8").rstrip()
-            returncode = _ran.returncode
-            raise op_exception_class(stderr_output, returncode) from err
-
-        return output
 
     def get_item(self, item_name_or_uuid):
         lookup_argv = [self.op_path, "get", "item", item_name_or_uuid]
