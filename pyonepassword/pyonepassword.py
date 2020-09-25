@@ -1,13 +1,11 @@
-import subprocess
 import json
-import logging
-from abc import ABCMeta, abstractmethod
-from os import environ as env
+
 from ._py_op_items import (
     OPItemFactory,
     OPAbstractItem,
     OPLoginItem,
 )
+
 from ._py_op_cli import _OPCLIExecute
 from ._py_op_deprecation import deprecated
 from .py_op_exceptions import (
