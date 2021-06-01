@@ -20,7 +20,7 @@ python3 -m pip install pyonepassword
 
 ## Example usage
 
-> Note: It is recommended to perform initial sign-in manually on the command line before using `pyonepassword`. Initial sign-in is supported but deprecated. Multi-factor-authenticaiton is not supported.
+> Note: It is recommended to perform initial sign-in manually on the command line before using `pyonepassword`.
 
 ### Subsequent sign-in and item retrieval
 

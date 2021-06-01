@@ -21,13 +21,9 @@ class _OPCommandInterface(_OPCLIExecute):
     No responses are parsed.
     """
 
-    def __init__(self, vault=None, account_shorthand=None, signin_address=None, email_address=None,
-                 secret_key=None, password=None, logger=None, op_path='op'):
+    def __init__(self, vault=None, account_shorthand=None, password_func=None, logger=None, op_path='op'):
         super().__init__(account_shorthand=account_shorthand,
-                         signin_address=signin_address,
-                         email_address=email_address,
-                         secret_key=secret_key,
-                         password=password,
+                         password_func=password_func,
                          logger=logger,
                          op_path=op_path)
         self.vault = vault

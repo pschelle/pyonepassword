@@ -14,7 +14,6 @@ from .py_op_exceptions import (
     OPCmdFailedException
 
 )
-from ._py_op_deprecation import deprecated
 
 """
 Module to hold stuff that interacts directly with 'op' or its config
@@ -94,8 +93,7 @@ class _OPCLIExecute:
     """
     OP_PATH = 'op'  # let subprocess find 'op' in the system path
 
-    def __init__(self, account_shorthand=None, signin_address=None, email_address=None,
-                 secret_key=None, password=None, logger=None, op_path='op'):
+    def __init__(self, account_shorthand=None, password_func=None, logger=None, op_path='op'):
         """
         Create an OP object. The 1Password sign-in happens during object instantiation.
         If 'password' is not provided, the 'op' command will prompt on the console for a password.
@@ -108,11 +106,7 @@ class _OPCLIExecute:
                                    You may choose this during initial signin, otherwise
                                    1Password converts it from your account address.
                                    See 'op signin --help' for more information.
-            - 'signin_address': Fully qualified address of the 1Password account.
-                                E.g., 'my-account.1password.com'
-            - 'email_address': Email of the address for the user of the account
-            - 'secret_key': Secret key for the account
-            - 'password': The user's master password
+            - 'password_func': The function to call to get user's master password
             - 'logger': A logging object. If not provided a basic logger is created and used.
             - 'op_path': optional path to the `op` command, if it's not at the default location
 
@@ -139,40 +133,20 @@ class _OPCLIExecute:
         self.account_shorthand = account_shorthand
         self.op_path = op_path
 
-        initial_signin_args = [account_shorthand,
-                               signin_address,
-                               email_address,
-                               secret_key,
-                               password]
-        initial_signin = (None not in initial_signin_args)
-
-        if initial_signin:
-            self.token = self._do_initial_signin(*initial_signin_args)
-            # export OP_SESSION_<signin_address>
-        else:
-            self.token = self._do_normal_signin(account_shorthand, password)
         sess_var_name = 'OP_SESSION_{}'.format(self.account_shorthand)
-        # TODO: return alread-decoded token from sign-in
-        env[sess_var_name] = self.token.decode()
+        if sess_var_name in env:
+            pass
+        else:
+            password = password_func()
+            self.token = self._do_normal_signin(account_shorthand, password)
+            # TODO: return alread-decoded token from sign-in
+            env[sess_var_name] = self.token.decode()
 
     def _do_normal_signin(self, account_shorthand, password):
         self.logger.info("Doing normal (non-initial) 1Password sign-in")
         signin_argv = _OPArgv.get_normal_signin_argv(self.op_path, account_shorthand=account_shorthand)
 
         token = self._run_signin(signin_argv, password=password).rstrip()
-        return token
-
-    @deprecated("Initial sign-in soon to be deprecated due to incompatibility with multi-factor authentication")
-    def _do_initial_signin(self, account_shorthand, signin_address, email_address, secret_key, password):
-        self.logger.info(
-            "Performing initial 1Password sign-in to {} as {}".format(signin_address, email_address))
-        signin_argv = [self.op_path, "signin", signin_address,
-                       email_address, secret_key, "--raw"]
-        if account_shorthand:
-            signin_argv.extend(["--shorthand", account_shorthand])
-
-        token = self._run_signin(signin_argv, password=password).rstrip()
-
         return token
 
     def _run_signin(self, argv, password=None):

@@ -1,14 +1,13 @@
 import json
 from json import JSONDecodeError
 from os import environ as env
-from ._py_op_items import (
+from .op_items import (
     OPItemFactory,
     OPAbstractItem,
     OPLoginItem,
 )
 
 from ._py_op_commands import _OPCommandInterface
-from ._py_op_deprecation import deprecated
 from .py_op_exceptions import (
     OPGetItemException,
     OPGetDocumentException,
@@ -28,8 +27,7 @@ class OP(_OPCommandInterface):
     Class for logging into and querying a 1Password account via the 'op' cli command.
     """
 
-    def __init__(self, vault=None, account_shorthand=None, signin_address=None, email_address=None,
-                 secret_key=None, password=None, logger=None, op_path='op'):
+    def __init__(self, vault=None, account_shorthand=None, password_func=None, logger=None, op_path='op'):
         """
         Create an OP object. The 1Password sign-in happens during object instantiation.
         If 'password' is not provided, the 'op' command will prompt on the console for a password.
@@ -44,11 +42,7 @@ class OP(_OPCommandInterface):
                                    You may choose this during initial signin, otherwise
                                    1Password converts it from your account address.
                                    See 'op signin --help' for more information.
-            - 'signin_address': Fully qualified address of the 1Password account.
-                                E.g., 'my-account.1password.com'
-            - 'email_address': Email of the address for the user of the account
-            - 'secret_key': Secret key for the account
-            - 'password': The user's master password
+            - 'password_func': The function to call to get the user's master password
             - 'logger': A logging object. If not provided a basic logger is created and used.
             - 'op_path': optional path to the `op` command, if it's not at the default location
 
@@ -58,10 +52,7 @@ class OP(_OPCommandInterface):
         """
         super().__init__(vault=vault,
                          account_shorthand=account_shorthand,
-                         signin_address=signin_address,
-                         email_address=email_address,
-                         secret_key=secret_key,
-                         password=password,
+                         password_func=password_func,
                          logger=logger,
                          op_path=op_path)
 
@@ -100,6 +91,16 @@ class OP(_OPCommandInterface):
 
     def get_group(self, group_name_or_uuid: str):
         return self._get_abstract('group', group_name_or_uuid, OPGetGroupException)
+    def list_vaults(self):
+        lookup_argv = [self.op_path, "list", "vaults"]
+        try:
+            output = self._run(
+                lookup_argv, capture_stdout=True, decode="utf-8")
+        except OPCmdFailedException as ocfe:
+            raise OPListEventsException.from_opexception(ocfe) from ocfe
+
+        item_dict = json.loads(output)
+        return item_dict
 
     def list_events(self, eventid=None, older=False):
         """
@@ -214,52 +215,4 @@ class OP(_OPCommandInterface):
         except KeyError:
             pass
 
-    @deprecated("use get_item() or get_item_password()")
-    def lookup(self, item_name_or_uuid, field_designation="password"):
-        """
-        Look up an item in a 1Password vault by name or UUID.
 
-        Arguments:
-            - 'item_name_or_uuid': The item to look up
-            - 'field_designation': The name of the field for which a value will be returned
-        Raises:
-            - OPGetItemException if the lookup fails for any reason.
-            - OPNotFoundException if the 1Password command can't be found.
-        Returns:
-            - Value of the specified field to lookup
-        """
-        # lookup_argv = [self.op_path, "get", "item", item_name_or_uuid]
-        # output = self._run_lookup(lookup_argv, self.token, decode="utf-8")
-        # item = json.loads(output)
-        # details = item['details']
-        # fields = details['fields']
-        # value = None
-        # for field in fields:
-        #     if 'designation' not in field.keys():
-        #         continue
-        #     if field['designation'] == field_designation:
-        #         value = field['value']
-        item: OPAbstractItem
-        if field_designation == "password":
-            value = self.get_item_password(item_name_or_uuid)
-        else:
-            item = self.get_item(item_name_or_uuid)
-            value = item.get_item_field_value(field_designation)
-        return value
-
-    @deprecated("use get_document()")
-    def download(self, item_name_or_uuid):
-        """
-        Download a document object from a 1Password vault by name or UUID.
-
-        Arguments:
-            - 'item_name_or_uuid': The item to look up
-        Raises:
-            - OPGetDocumentException if the lookup fails for any reason.
-            - OPNotFoundException if the 1Password command can't be found.
-        Returns:
-            - Bytes of the specified document
-        """
-        output = super().get_document(item_name_or_uuid)
-
-        return output
