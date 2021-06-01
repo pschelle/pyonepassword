@@ -99,8 +99,16 @@ class OP(_OPCommandInterface):
         except OPCmdFailedException as ocfe:
             raise OPListEventsException.from_opexception(ocfe) from ocfe
 
-        item_dict = json.loads(output)
-        return item_dict
+        return json.loads(output)
+
+    def create_vault(self, vault_name, allow_admins_to_manage = True, description = None):
+        _argv = [self.op_path, "create", "vault", vault_name, '--allow-admins-to-manage', 'true' if allow_admins_to_manage else 'false']
+        if description: _argv.extend(['--description', description])
+        try:
+            output = self._run(_argv, capture_stdout=True, decode="utf-8")
+        except OPCmdFailedException as ocfe:
+            raise ocfe
+        return json.loads(output)
 
     def list_events(self, eventid=None, older=False):
         """

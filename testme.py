@@ -45,6 +45,9 @@ if __name__ == "__main__":
 
     vaults = op.list_vaults()
     print (len(vaults), vaults)
-    for v in vaults:
-        vault = op.get_vault(v['uuid'])
-        print (vault)
+    if 0:
+        for v in vaults:
+            vault = op.get_vault(v['uuid'])
+            print (vault)
+    newvault = op.create_vault('test')
+    print (newvault)
